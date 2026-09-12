@@ -239,7 +239,7 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
         .sc-root, .sc-root * { box-sizing: border-box; }
-        .sc-root { font-family: 'Inter', system-ui, sans-serif; background: #0a0e1a; color: #e7ecf7; padding: 18px 14px 60px; min-height: 0vh; }
+        .sc-root { font-family: 'Inter', system-ui, sans-serif; background: #0a0e1a; color: #e7ecf7; padding: 18px 14px 60px; min-height: 100vh; }
         .sc-heading { font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 0.02em; }
         .spin { animation: sc-spin 1s linear infinite; }
         @keyframes sc-spin { to { transform: rotate(360deg); } }
