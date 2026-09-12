@@ -269,13 +269,13 @@ export default function App() {
         .sc-name { font-size: 9.5px; color: #8b96b8; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
         .sc-values { background: #0c1220; border: 1px solid #1c2540; border-radius: 8px; padding: 5px 5px; display: flex; flex-direction: column; gap: 5px; }
         .sc-vrow { display: flex; flex-direction: column; gap: 2px; }
-        .sc-vlabel { font-size: 7px; color: #5b6784; text-transform: uppercase; letter-spacing: 0.04em; }
+        .sc-vlabel { font-size: 7px; color: #ffffff; text-transform: uppercase; letter-spacing: 0.04em; }
         .sc-vline { display: flex; align-items: center; gap: 3px; }
         .sc-vinput { width: 100%; min-width: 0; background: transparent; border: none; border-bottom: 1px solid #26314d; color: #e7ecf7; font-size: 11px; padding: 1px 2px; text-align: right; }
         .sc-vinput:focus { outline: none; border-bottom-color: var(--acc); }
         .sc-vinput::-webkit-outer-spin-button, .sc-vinput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .sc-vinput[type=number] { -moz-appearance: textfield; }
-        .sc-vpct { font-size: 9px; color: #5b6784; }
+        .sc-vpct { font-size: 9px; color: #ffffff; }
         .sc-addpot { font-size: 9px; color: #5b6784; text-decoration: underline; cursor: pointer; text-align: center; }
         .sc-overlay { position: fixed; inset: 0; background: rgba(6,9,18,0.82); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
         .sc-modal { background: #10182c; width: 100%; max-width: 520px; max-height: 82vh; border-radius: 18px 18px 0 0; padding: 16px; overflow-y: auto; border: 1px solid #26314d; border-bottom: none; }
