@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Minus, X, Upload, ArrowUp, ArrowDown, Trash2, Loader2, FolderOpen, Download } from 'lucide-react';
+import { Plus, X, Upload, Trash2, Loader2, FolderOpen, Download } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
 // Simple localStorage-backed storage, mirrors the shape of the Claude-artifact
@@ -64,13 +64,13 @@ function resizeImageFile(file, maxSize = 160) {
   });
 }
 
-function SignIcon({ value }) {
-  if (value === '' || value === null || value === undefined) return <span style={{ width: 13, display: 'inline-block' }} />;
+function valueColor(value) {
+  if (value === '' || value === null || value === undefined) return '#e7ecf7';
   const n = parseFloat(value);
-  if (isNaN(n)) return <span style={{ width: 13, display: 'inline-block' }} />;
-  if (n > 0) return <ArrowUp size={13} color="#45d483" strokeWidth={3} />;
-  if (n < 0) return <ArrowDown size={13} color="#f26d6d" strokeWidth={3} />;
-  return <span style={{ color: '#7c88a8', fontSize: 13, fontWeight: 700, lineHeight: '13px' }}>~</span>;
+  if (isNaN(n)) return '#e7ecf7';
+  if (n > 0) return '#4ade80';
+  if (n < 0) return '#f87171';
+  return '#ffffff';
 }
 
 export default function App() {
@@ -160,13 +160,6 @@ export default function App() {
     persistBoard(next);
   };
 
-  const togglePotential = (cellId, on) => {
-    const current = { ...(board[cellId] || {}) };
-    if (on) current.potential = current.potential ?? '';
-    else delete current.potential;
-    persistBoard({ ...board, [cellId]: current });
-  };
-
   const changeCellCount = (qualityKey, delta) => {
     const current = layout[qualityKey] ?? 0;
     const nextCount = Math.max(0, Math.min(20, current + delta));
@@ -244,39 +237,42 @@ export default function App() {
         .spin { animation: sc-spin 1s linear infinite; }
         @keyframes sc-spin { to { transform: rotate(360deg); } }
         .sc-topbar { margin-bottom: 12px; }
-        .sc-title { font-size: 22px; }
-        .sc-subtitle { font-size: 12px; color: #7c88a8; margin-top: 2px; }
+        .sc-title { font-size: 26px; text-transform: uppercase; letter-spacing: 0.03em; background: linear-gradient(90deg, #f0b429, #a970f0, #4fc3f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .sc-subtitle { font-size: 12.5px; color: #7c88a8; margin-top: 2px; letter-spacing: 0.02em; }
         .sc-actions { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
         .sc-libbtn { display: flex; align-items: center; gap: 6px; background: #131c33; border: 1px solid #26314d; color: #e7ecf7; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
         .sc-libbtn:active { transform: scale(0.97); }
         .sc-libbtn.disabled { opacity: 0.6; pointer-events: none; }
         .sc-section { border-radius: 16px; padding: 14px 12px 16px; margin-bottom: 16px; border: 1px solid var(--acc-dim); background: linear-gradient(180deg, var(--acc-bg) 0%, #0d1424 100%); }
         .sc-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-        .sc-section-title { font-size: 16px; color: var(--acc); display: flex; align-items: center; gap: 8px; }
-        .sc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--acc); box-shadow: 0 0 8px var(--acc); }
+        .sc-section-title { font-size: 16px; color: var(--acc); display: flex; align-items: center; gap: 9px; }
+        .sc-dot { width: 9px; height: 9px; background: var(--acc); box-shadow: 0 0 8px var(--acc); transform: rotate(45deg); border-radius: 2px; flex-shrink: 0; }
         .sc-stepper { display: flex; align-items: center; gap: 8px; }
         .sc-stepbtn { width: 24px; height: 24px; border-radius: 7px; border: 1px solid var(--acc-dim); background: #10182c; color: var(--acc); display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .sc-stepbtn:active { transform: scale(0.92); }
         .sc-count { font-size: 13px; min-width: 16px; text-align: center; font-weight: 600; color: #cfd6e8; }
-        .sc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
-        .sc-cell-wrap { display: flex; flex-direction: column; gap: 6px; }
-        .sc-cell { aspect-ratio: 1; border-radius: 10px; position: relative; cursor: pointer; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        .sc-cell.empty { border: 1.5px dashed var(--acc-dim); background: #0c1220; color: var(--acc-dim); }
-        .sc-cell.empty:active { background: #101a30; }
-        .sc-cell.filled { border: 1.5px solid var(--acc); background: #0c1220; box-shadow: 0 0 10px var(--acc-glow) inset; }
-        .sc-cell img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
-        .sc-cell .sc-remove { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 5px; background: rgba(10,14,26,0.85); border: 1px solid #26314d; color: #cfd6e8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .sc-name { font-size: 9.5px; color: #8b96b8; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
-        .sc-values { background: #0c1220; border: 1px solid #1c2540; border-radius: 8px; padding: 5px 5px; display: flex; flex-direction: column; gap: 5px; }
-        .sc-vrow { display: flex; flex-direction: column; gap: 2px; }
-        .sc-vlabel { font-size: 7px; color: #ffffff; text-transform: uppercase; letter-spacing: 0.04em; }
-        .sc-vline { display: flex; align-items: center; gap: 3px; }
-        .sc-vinput { width: 100%; min-width: 0; background: transparent; border: none; border-bottom: 1px solid #26314d; color: #e7ecf7; font-size: 11px; padding: 1px 2px; text-align: right; }
-        .sc-vinput:focus { outline: none; border-bottom-color: var(--acc); }
-        .sc-vinput::-webkit-outer-spin-button, .sc-vinput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .sc-vinput[type=number] { -moz-appearance: textfield; }
-        .sc-vpct { font-size: 9px; color: #ffffff; }
-        .sc-addpot { font-size: 9px; color: #5b6784; text-decoration: underline; cursor: pointer; text-align: center; }
+        .sc-empty-msg { font-size: 12.5px; color: #5b6784; text-align: center; padding: 18px 6px; line-height: 1.5; }
+        .sc-cardlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+        .sc-card { display: flex; align-items: center; gap: 10px; border-radius: 14px; padding: 10px; position: relative; min-height: 78px; }
+        .sc-card.empty { border: 1.5px dashed var(--acc-dim); background: #0c1220; cursor: pointer; justify-content: center; color: var(--acc-dim); gap: 8px; }
+        .sc-card.empty:active { background: #101a30; }
+        .sc-card.filled { border: 1.5px solid var(--acc); background: #0c1220; box-shadow: 0 0 10px var(--acc-glow) inset; }
+        .sc-card-emptytext { font-size: 12.5px; font-weight: 600; color: #7c88a8; }
+        .sc-card-icon { width: 60px; height: 60px; border-radius: 10px; border: 1.5px solid var(--acc); background: #10182c; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .sc-card-icon img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+        .sc-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+        .sc-card-name { font-size: 14px; font-weight: 600; color: #e7ecf7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sc-card-badge { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #0a0e1a; background: var(--acc); padding: 2px 8px; border-radius: 20px; width: fit-content; }
+        .sc-card-values { display: flex; gap: 14px; flex-shrink: 0; }
+        .sc-card-valcol { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 46px; }
+        .sc-card-vallabel { font-size: 8px; font-weight: 700; color: #ffffff; text-transform: uppercase; letter-spacing: 0.04em; }
+        .sc-card-valline { display: flex; align-items: baseline; gap: 1px; }
+        .sc-card-valinput { width: 42px; background: transparent; border: none; border-bottom: 1px solid #26314d; font-size: 13px; font-weight: 700; padding: 1px 2px; text-align: right; font-family: inherit; }
+        .sc-card-valinput:focus { outline: none; border-bottom-color: var(--acc); }
+        .sc-card-valinput::-webkit-outer-spin-button, .sc-card-valinput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .sc-card-valinput[type=number] { -moz-appearance: textfield; }
+        .sc-card-valpct { font-size: 11px; font-weight: 700; color: #ffffff; }
+        .sc-card-remove { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 6px; background: rgba(10,14,26,0.85); border: 1px solid #26314d; color: #cfd6e8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .sc-overlay { position: fixed; inset: 0; background: rgba(6,9,18,0.82); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
         .sc-modal { background: #10182c; width: 100%; max-width: 520px; max-height: 82vh; border-radius: 18px 18px 0 0; padding: 16px; overflow-y: auto; border: 1px solid #26314d; border-bottom: none; }
         .sc-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -286,7 +282,6 @@ export default function App() {
         .sc-pick-item { aspect-ratio: 1; border-radius: 9px; background: #0c1220; border: 1px solid #26314d; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; }
         .sc-pick-item img { width: 100%; height: 100%; object-fit: contain; padding: 5px; }
         .sc-pick-item:active { border-color: #5b6784; }
-        .sc-empty-msg { font-size: 12.5px; color: #5b6784; text-align: center; padding: 18px 6px; line-height: 1.5; }
         .sc-uploadbtn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 11px; border-radius: 10px; border: 1px dashed #3a4666; color: #9aa5c4; font-size: 13px; font-weight: 600; cursor: pointer; background: #0c1220; }
         .sc-tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 2px; }
         .sc-tab { flex-shrink: 0; padding: 6px 11px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #26314d; background: #131c33; color: #8b96b8; }
@@ -307,7 +302,7 @@ export default function App() {
 
       <div className="sc-topbar">
         <div className="sc-heading sc-title">Skill Constructor</div>
-        <div className="sc-subtitle">Tap a cell to choose a skill</div>
+        <div className="sc-subtitle">Eye + Ring · Skill Comparison</div>
       </div>
       <div className="sc-actions">
         <div className="sc-libbtn" onClick={() => setLibraryOpen(true)}>
@@ -321,65 +316,64 @@ export default function App() {
       <div ref={boardRef}>
         {QUALITIES.map((q) => {
           const count = layout[q.key] ?? 0;
-          const showValues = q.key !== 'base';
           return (
             <div key={q.key} className="sc-section" style={{ '--acc': q.accent, '--acc-dim': q.accentDim, '--acc-glow': q.glow, '--acc-bg': q.accentDim + '22' }}>
               <div className="sc-section-head">
                 <div className="sc-heading sc-section-title"><span className="sc-dot" />{q.label}</div>
                 <div className="sc-stepper">
-                  <div className="sc-stepbtn" onClick={() => changeCellCount(q.key, -1)}><Minus size={13} /></div>
+                  <div className="sc-stepbtn" onClick={() => changeCellCount(q.key, -1)}>−</div>
                   <div className="sc-count">{count}</div>
-                  <div className="sc-stepbtn" onClick={() => changeCellCount(q.key, 1)}><Plus size={13} /></div>
+                  <div className="sc-stepbtn" onClick={() => changeCellCount(q.key, 1)}>+</div>
                 </div>
               </div>
               {count === 0 ? (
                 <div className="sc-empty-msg">No cells yet — add one with the + above</div>
               ) : (
-                <div className="sc-grid">
+                <div className="sc-cardlist">
                   {Array.from({ length: count }).map((_, i) => {
                     const cellId = `${q.key}-${i}`;
                     const cellData = board[cellId];
                     const skill = cellData ? skillById(cellData.skillId) : null;
-                    const hasPotential = cellData && cellData.potential !== undefined;
                     return (
-                      <div className="sc-cell-wrap" key={cellId}>
-                        <div className={`sc-cell ${skill ? 'filled' : 'empty'}`} onClick={() => !skill && openPicker(q.key, i)}>
-                          {skill ? (
-                            <>
-                              <img src={skill.image} alt={skill.name} />
-                              <div className="sc-remove" onClick={(e) => { e.stopPropagation(); clearCell(cellId); }}><X size={11} /></div>
-                            </>
-                          ) : (
-                            <Plus size={20} />
-                          )}
-                        </div>
-                        {skill && <div className="sc-name">{skill.name}</div>}
-                        {skill && showValues && (
-                          <div className="sc-values">
-                            <div className="sc-vrow">
-                              <span className="sc-vlabel">DPS</span>
-                              <div className="sc-vline">
-                                <SignIcon value={cellData.normal} />
-                                <input className="sc-vinput" type="number" placeholder="0" value={cellData.normal ?? ''}
-                                  onChange={(e) => updateCellValue(cellId, 'normal', e.target.value)} />
-                                <span className="sc-vpct">%</span>
-                              </div>
+                      <div key={cellId} className={`sc-card ${skill ? 'filled' : 'empty'}`}
+                        style={{ '--acc': q.accent, '--acc-dim': q.accentDim, '--acc-glow': q.glow }}
+                        onClick={() => !skill && openPicker(q.key, i)}>
+                        {skill ? (
+                          <>
+                            <div className="sc-card-icon"><img src={skill.image} alt={skill.name} /></div>
+                            <div className="sc-card-info">
+                              <div className="sc-card-name">{skill.name}</div>
+                              <div className="sc-card-badge">{q.short}</div>
                             </div>
-                            {hasPotential && (
-                              <div className="sc-vrow">
-                                <span className="sc-vlabel">Potential</span>
-                                <div className="sc-vline">
-                                  <SignIcon value={cellData.potential} />
-                                  <input className="sc-vinput" type="number" placeholder="0" value={cellData.potential ?? ''}
-                                    onChange={(e) => updateCellValue(cellId, 'potential', e.target.value)} />
-                                  <span className="sc-vpct">%</span>
+                            <div className="sc-card-values">
+                              <div className="sc-card-valcol">
+                                <div className="sc-card-vallabel">DPS</div>
+                                <div className="sc-card-valline">
+                                  <input className="sc-card-valinput" type="number" placeholder="0"
+                                    style={{ color: valueColor(cellData.normal) }}
+                                    value={cellData.normal ?? ''} onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => updateCellValue(cellId, 'normal', e.target.value)} />
+                                  <span className="sc-card-valpct">%</span>
                                 </div>
                               </div>
-                            )}
-                            <div className="sc-addpot" onClick={() => togglePotential(cellId, !hasPotential)}>
-                              {hasPotential ? '− potential' : '+ potential'}
+                              <div className="sc-card-valcol">
+                                <div className="sc-card-vallabel">Potential</div>
+                                <div className="sc-card-valline">
+                                  <input className="sc-card-valinput" type="number" placeholder="0"
+                                    style={{ color: valueColor(cellData.potential) }}
+                                    value={cellData.potential ?? ''} onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => updateCellValue(cellId, 'potential', e.target.value)} />
+                                  <span className="sc-card-valpct">%</span>
+                                </div>
+                              </div>
                             </div>
-                          </div>
+                            <div className="sc-card-remove" onClick={(e) => { e.stopPropagation(); clearCell(cellId); }}><X size={12} /></div>
+                          </>
+                        ) : (
+                          <>
+                            <Plus size={18} />
+                            <div className="sc-card-emptytext">Empty cell</div>
+                          </>
                         )}
                       </div>
                     );
