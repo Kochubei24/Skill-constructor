@@ -252,22 +252,22 @@ export default function App() {
         .sc-stepbtn:active { transform: scale(0.92); }
         .sc-count { font-size: 13px; min-width: 16px; text-align: center; font-weight: 600; color: #cfd6e8; }
         .sc-empty-msg { font-size: 12.5px; color: #5b6784; text-align: center; padding: 18px 6px; line-height: 1.5; }
-        .sc-cardlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+        .sc-cardlist { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
         .sc-card { display: flex; align-items: center; gap: 10px; border-radius: 14px; padding: 10px; position: relative; min-height: 78px; }
         .sc-card.empty { border: 1.5px dashed var(--acc-dim); background: #0c1220; cursor: pointer; justify-content: center; color: var(--acc-dim); gap: 8px; }
         .sc-card.empty:active { background: #101a30; }
         .sc-card.filled { border: 1.5px solid var(--acc); background: #0c1220; box-shadow: 0 0 10px var(--acc-glow) inset; }
         .sc-card-emptytext { font-size: 12.5px; font-weight: 600; color: #7c88a8; }
         .sc-card-icon { width: 60px; height: 60px; border-radius: 10px; border: 1.5px solid var(--acc); background: #10182c; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .sc-card-icon img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+        .sc-card-icon img { width: 100%; height: 100%; object-fit: contain; padding: 2px; }
         .sc-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
         .sc-card-name { font-size: 14px; font-weight: 600; color: #e7ecf7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sc-card-badge { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #0a0e1a; background: var(--acc); padding: 2px 8px; border-radius: 20px; width: fit-content; }
         .sc-card-values { display: flex; gap: 14px; flex-shrink: 0; }
         .sc-card-valcol { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 46px; }
-        .sc-card-vallabel { font-size: 8px; font-weight: 700; color: #ffffff; text-transform: uppercase; letter-spacing: 0.04em; }
+        .sc-card-vallabel { font-size: 16px; font-weight: 700; color: #ffffff; text-transform: uppercase; letter-spacing: 0.04em; }
         .sc-card-valline { display: flex; align-items: baseline; gap: 1px; }
-        .sc-card-valinput { width: 42px; background: transparent; border: none; border-bottom: 1px solid #26314d; font-size: 13px; font-weight: 700; padding: 1px 2px; text-align: right; font-family: inherit; }
+        .sc-card-valinput { width: 42px; background: transparent; border: none; border-bottom: 1px solid #26314d; font-size: 26px; font-weight: 700; padding: 1px 2px; text-align: right; font-family: inherit; }
         .sc-card-valinput:focus { outline: none; border-bottom-color: var(--acc); }
         .sc-card-valinput::-webkit-outer-spin-button, .sc-card-valinput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .sc-card-valinput[type=number] { -moz-appearance: textfield; }
