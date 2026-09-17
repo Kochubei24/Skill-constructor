@@ -83,6 +83,7 @@ export default function App() {
   const [libTab, setLibTab] = useState('legendary');
   const [toast, setToast] = useState('');
   const [downloading, setDownloading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const boardSaveTimer = useRef(null);
   const fileInputRef = useRef(null);
   const uploadContext = useRef(null);
@@ -196,26 +197,29 @@ export default function App() {
   };
 
   const handleDownload = async () => {
-    if (!boardRef.current || downloading) return;
-    setDownloading(true);
-    try {
-      const dataUrl = await toPng(boardRef.current, {
-        backgroundColor: '#0a0e1a',
-        pixelRatio: 3,
-        cacheBust: true,
-      });
-      const link = document.createElement('a');
-      link.download = 'skill-build.png';
-      link.href = dataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (e) {
-      showToast('Failed to export image');
-    } finally {
-      setDownloading(false);
-    }
-  };
+  if (!boardRef.current || downloading) return;
+  setDownloading(true);
+  setExporting(true);
+  try {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const dataUrl = await toPng(boardRef.current, {
+      backgroundColor: '#0a0e1a',
+      pixelRatio: 3,
+      cacheBust: true,
+    });
+    const link = document.createElement('a');
+    link.download = 'skill-build.png';
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (e) {
+    showToast('Failed to export image');
+  } finally {
+    setExporting(false);
+    setDownloading(false);
+  }
+};
 
   if (loading) {
     return (
@@ -262,7 +266,7 @@ export default function App() {
         .sc-card-icon img { width: 100%; height: 100%; object-fit: contain; padding: 1px; }
         .sc-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
         .sc-card-name { font-size: 14px; font-weight: 600; color: #e7ecf7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sc-card-badge { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #0a0e1a; background: var(--acc); padding: 2px 8px; border-radius: 20px; width: fit-content; }
+        .sc-card-badge { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #0a0e1a; background: var(--acc); padding: 2px 8px; border-radius: 20px; width: fit-content; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
         .sc-card-values { display: flex; gap: 14px; flex-shrink: 0; }
         .sc-card-valcol { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 46px; }
         .sc-card-vallabel { font-size: 12px; font-weight: 700; color: #ffffff; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -273,6 +277,8 @@ export default function App() {
         .sc-card-valinput[type=number] { -moz-appearance: textfield; }
         .sc-card-valpct { font-size: 11px; font-weight: 700; color: #ffffff; }
         .sc-card-remove { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 6px; background: rgba(10,14,26,0.85); border: 1px solid #26314d; color: #cfd6e8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .sc-exporting .sc-card-remove { display: none; }
+        .sc-exporting .sc-stepbtn { display: none; }
         .sc-overlay { position: fixed; inset: 0; background: rgba(6,9,18,0.82); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
         .sc-modal { background: #10182c; width: 100%; max-width: 520px; max-height: 82vh; border-radius: 18px 18px 0 0; padding: 16px; overflow-y: auto; border: 1px solid #26314d; border-bottom: none; }
         .sc-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -313,7 +319,7 @@ export default function App() {
         </div>
       </div>
 
-      <div ref={boardRef}>
+      <div ref={boardRef} className={exporting ? 'sc-exporting' : ''}>
         {QUALITIES.map((q) => {
           const count = layout[q.key] ?? 0;
           return (
