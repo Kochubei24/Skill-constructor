@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, X, Upload, Trash2, Loader2, FolderOpen } from 'lucide-react';
+import { Plus, X, Upload, Trash2, Loader2, FolderOpen, Download } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import { storage, uid, resizeImageFile } from './storage';
 
 const EQUIPMENT_SLOTS = [
   { key: 'weapon', label: 'Weapon' },
   { key: 'helmet', label: 'Helmet' },
   { key: 'necklace', label: 'Necklace' },
-  { key: 'chest', label: 'Chest Armor' },
-  { key: 'bracelet', label: 'Bracelet' },
+  { key: 'chest', label: 'Armor' },
+  { key: 'bracelet', label: 'Ring' },
   { key: 'boots', label: 'Boots' },
 ];
 
@@ -32,9 +33,12 @@ export default function ArcheroBuilder() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libTab, setLibTab] = useState('weapon');
   const [toast, setToast] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const fileInputRef = useRef(null);
   const uploadContext = useRef(null);
   const boardSaveTimer = useRef(null);
+  const eqGridRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -113,7 +117,34 @@ export default function ArcheroBuilder() {
     fileInputRef.current?.click();
   };
 
+  const handleDownload = async () => {
+    if (!eqGridRef.current || downloading) return;
+    setDownloading(true);
+    setExporting(true);
+    try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const dataUrl = await toPng(eqGridRef.current, {
+        backgroundColor: '#0a0e1a',
+        pixelRatio: 3,
+        cacheBust: true,
+      });
+      const link = document.createElement('a');
+      link.download = 'equipment.png';
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      showToast('Failed to export image');
+    } finally {
+      setExporting(false);
+      setDownloading(false);
+    }
+  };
+
   const itemById = (id) => library.find((s) => s.id === id);
+  const installedIds = Object.values(board).map((b) => b?.itemId).filter(Boolean);
+  const pickerOptions = picker ? library.filter((s) => s.slot === picker && !installedIds.includes(s.id)) : [];
 
   if (loading) {
     return (
@@ -134,15 +165,20 @@ export default function ArcheroBuilder() {
         .ab-actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
         .ab-libbtn { display: flex; align-items: center; gap: 6px; background: #131c33; border: 1px solid #26314d; color: #e7ecf7; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
         .ab-libbtn:active { transform: scale(0.97); }
+        .ab-libbtn.disabled { opacity: 0.6; pointer-events: none; }
         .ab-eq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 420px; margin: 4px auto 0; }
-        .ab-eq-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border-radius: 16px; padding: 12px; position: relative; aspect-ratio: 1; }
+        .ab-eq-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border-radius: 16px; padding: 12px; position: relative; aspect-ratio: 1; overflow: hidden; }
         .ab-eq-card.empty { border: 1.5px dashed ${ACC.accentDim}; background: #0c1220; cursor: pointer; color: ${ACC.accentDim}; }
         .ab-eq-card.empty:active { background: #101a30; }
-        .ab-eq-card.filled { border: 1.5px solid ${ACC.accent}; background: #0c1220; box-shadow: 0 0 10px ${ACC.glow} inset; }
+        .ab-eq-card.filled { border: none; padding: 0; background: #0c1220; box-shadow: 0 0 12px ${ACC.glow}; cursor: pointer; }
+        .ab-eq-card.filled:active { opacity: 0.9; }
         .ab-eq-icon { width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 10px; }
         .ab-eq-icon img { width: 100%; height: 100%; object-fit: contain; }
+        .ab-eq-card.filled .ab-eq-icon { position: absolute; inset: 0; border-radius: 16px; }
+        .ab-eq-card.filled .ab-eq-icon img { object-fit: cover; }
         .ab-eq-label { font-size: 11.5px; font-weight: 600; color: #9aa5c4; text-transform: uppercase; letter-spacing: 0.02em; }
-        .ab-eq-remove { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 6px; background: rgba(10,14,26,0.85); border: 1px solid #26314d; color: #cfd6e8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .ab-eq-remove { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 6px; background: rgba(10,14,26,0.85); border: 1px solid #26314d; color: #cfd6e8; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; }
+        .ab-exporting .ab-eq-remove { display: none; }
         .ab-empty-msg { font-size: 12.5px; color: #5b6784; text-align: center; padding: 18px 6px; line-height: 1.5; }
         .ab-soon { text-align: center; padding: 50px 20px; color: #5b6784; font-size: 13.5px; line-height: 1.6; }
         .ab-overlay { position: fixed; inset: 0; background: rgba(6,9,18,0.82); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
@@ -183,19 +219,21 @@ export default function ArcheroBuilder() {
             <div className="ab-libbtn" onClick={() => setLibraryOpen(true)}>
               <FolderOpen size={15} /> Library
             </div>
+            <div className={`ab-libbtn ${downloading ? 'disabled' : ''}`} onClick={handleDownload}>
+              {downloading ? <Loader2 size={15} className="spin" /> : <Download size={15} />} Download
+            </div>
           </div>
 
-          <div className="ab-eq-grid">
+          <div ref={eqGridRef} className={`ab-eq-grid ${exporting ? 'ab-exporting' : ''}`}>
             {EQUIPMENT_SLOTS.map((slot) => {
               const cellData = board[slot.key];
               const item = cellData ? itemById(cellData.itemId) : null;
               return (
                 <div key={slot.key} className={`ab-eq-card ${item ? 'filled' : 'empty'}`}
-                  onClick={() => !item && openPicker(slot.key)}>
+                  onClick={() => openPicker(slot.key)}>
                   {item ? (
                     <>
                       <div className="ab-eq-icon"><img src={item.image} alt={item.name} /></div>
-                      <div className="ab-eq-label">{slot.label}</div>
                       <div className="ab-eq-remove" onClick={(e) => { e.stopPropagation(); clearSlot(slot.key); }}><X size={12} /></div>
                     </>
                   ) : (
@@ -224,11 +262,11 @@ export default function ArcheroBuilder() {
               <div className="ab-modal-title">{EQUIPMENT_SLOTS.find((s) => s.key === picker)?.label}</div>
               <div className="ab-close" onClick={() => setPicker(null)}><X size={15} /></div>
             </div>
-            {library.filter((s) => s.slot === picker).length === 0 ? (
-              <div className="ab-empty-msg">No icons for this slot in the library yet.<br />Upload the first one below.</div>
+            {pickerOptions.length === 0 ? (
+              <div className="ab-empty-msg">No available icons for this slot.<br />Upload a new one below.</div>
             ) : (
               <div className="ab-picker-grid">
-                {library.filter((s) => s.slot === picker).map((s) => (
+                {pickerOptions.map((s) => (
                   <div key={s.id} className="ab-pick-item" onClick={() => assignItemToSlot(picker, s.id)}>
                     <img src={s.image} alt={s.name} />
                   </div>
