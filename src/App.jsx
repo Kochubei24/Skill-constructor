@@ -1,24 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, X, Upload, Trash2, Loader2, FolderOpen, Download } from 'lucide-react';
 import { toPng } from 'html-to-image';
-
-// Simple localStorage-backed storage, mirrors the shape of the Claude-artifact
-// window.storage API (get/set returning {key, value}) so the rest of the app
-// logic didn't need to change.
-const storage = {
-  get: async (key) => {
-    const v = localStorage.getItem(key);
-    return v === null ? null : { key, value: v };
-  },
-  set: async (key, value) => {
-    try {
-      localStorage.setItem(key, value);
-      return { key, value };
-    } catch (e) {
-      return null;
-    }
-  },
-};
+import { storage, uid, resizeImageFile } from './storage';
+import ArcheroBuilder from './ArcheroBuilder';
 
 const QUALITIES = [
   { key: 'base', label: 'Base Skills', short: 'Base', accent: '#2dd4c9', accentDim: '#0d5c54', glow: 'rgba(45,212,201,0.35)' },
@@ -33,37 +17,6 @@ const LIB_KEY = 'skill-library-v1';
 const LAYOUT_KEY = 'layout-v1';
 const BOARD_KEY = 'board-v1';
 
-function uid() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-}
-
-function resizeImageFile(file, maxSize = 160) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > height) {
-          if (width > maxSize) { height = Math.round(height * (maxSize / width)); width = maxSize; }
-        } else if (height > maxSize) {
-          width = Math.round(width * (maxSize / height)); height = maxSize;
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      img.onerror = () => reject(new Error('bad image'));
-      img.src = e.target.result;
-    };
-    reader.onerror = () => reject(new Error('read failed'));
-    reader.readAsDataURL(file);
-  });
-}
-
 function valueColor(value) {
   if (value === '' || value === null || value === undefined) return '#e7ecf7';
   const n = parseFloat(value);
@@ -74,6 +27,7 @@ function valueColor(value) {
 }
 
 export default function App() {
+  const [page, setPage] = useState('skills'); // 'skills' | 'archero'
   const [loading, setLoading] = useState(true);
   const [library, setLibrary] = useState([]);
   const [layout, setLayout] = useState(DEFAULT_LAYOUT);
@@ -243,6 +197,10 @@ export default function App() {
         .sc-topbar { margin-bottom: 12px; }
         .sc-title { font-size: 26px; text-transform: uppercase; letter-spacing: 0.03em; background: linear-gradient(90deg, #f0b429, #a970f0, #4fc3f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
         .sc-subtitle { font-size: 12.5px; color: #7c88a8; margin-top: 2px; letter-spacing: 0.02em; }
+        .sc-pagetabs { display: flex; gap: 8px; margin-bottom: 18px; }
+        .sc-pagetab { flex: 1; text-align: center; padding: 10px 8px; border-radius: 12px; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.02em; cursor: pointer; border: 1px solid #26314d; background: #131c33; color: #8b96b8; }
+        .sc-pagetab.active { background: linear-gradient(90deg, #f0b429, #a970f0); color: #0a0e1a; border-color: transparent; }
+        .sc-pagetab:active { transform: scale(0.98); }
         .sc-actions { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
         .sc-libbtn { display: flex; align-items: center; gap: 6px; background: #131c33; border: 1px solid #26314d; color: #e7ecf7; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
         .sc-libbtn:active { transform: scale(0.97); }
@@ -306,163 +264,174 @@ export default function App() {
       <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
         onChange={(e) => { const f = e.target.files?.[0]; handleFileChosen(f); e.target.value = ''; }} />
 
-      <div className="sc-topbar">
-        <div className="sc-heading sc-title">Skill Constructor</div>
-        <div className="sc-subtitle">Eye + Ring · Skill Comparison</div>
-      </div>
-      <div className="sc-actions">
-        <div className="sc-libbtn" onClick={() => setLibraryOpen(true)}>
-          <FolderOpen size={15} /> Library
-        </div>
-        <div className={`sc-libbtn ${downloading ? 'disabled' : ''}`} onClick={handleDownload}>
-          {downloading ? <Loader2 size={15} className="spin" /> : <Download size={15} />} Download
-        </div>
+      <div className="sc-pagetabs">
+        <div className={`sc-pagetab ${page === 'skills' ? 'active' : ''}`} onClick={() => setPage('skills')}>Skill Constructor</div>
+        <div className={`sc-pagetab ${page === 'archero' ? 'active' : ''}`} onClick={() => setPage('archero')}>Archero Builder</div>
       </div>
 
-      <div ref={boardRef} className={exporting ? 'sc-exporting' : ''}>
-        {QUALITIES.map((q) => {
-          const count = layout[q.key] ?? 0;
-          return (
-            <div key={q.key} className="sc-section" style={{ '--acc': q.accent, '--acc-dim': q.accentDim, '--acc-glow': q.glow, '--acc-bg': q.accentDim + '22' }}>
-              <div className="sc-section-head">
-                <div className="sc-heading sc-section-title"><span className="sc-dot" />{q.label}</div>
-                <div className="sc-stepper">
-                  <div className="sc-stepbtn" onClick={() => changeCellCount(q.key, -1)}>−</div>
-                  <div className="sc-count">{count}</div>
-                  <div className="sc-stepbtn" onClick={() => changeCellCount(q.key, 1)}>+</div>
-                </div>
-              </div>
-              {count === 0 ? (
-                <div className="sc-empty-msg">No cells yet — add one with the + above</div>
-              ) : (
-                <div className="sc-cardlist">
-                  {Array.from({ length: count }).map((_, i) => {
-                    const cellId = `${q.key}-${i}`;
-                    const cellData = board[cellId];
-                    const skill = cellData ? skillById(cellData.skillId) : null;
-                    return (
-                      <div key={cellId} className={`sc-card ${skill ? 'filled' : 'empty'}`}
-                        style={{ '--acc': q.accent, '--acc-dim': q.accentDim, '--acc-glow': q.glow }}
-                        onClick={() => !skill && openPicker(q.key, i)}>
-                        {skill ? (
-                          <>
-                            <div className="sc-card-icon"><img src={skill.image} alt={skill.name} /></div>
-                            <div className="sc-card-info">
-                              <div className="sc-card-name">{skill.name}</div>
-                              <div className="sc-card-badge">{q.short}</div>
-                            </div>
-                            <div className="sc-card-values">
-                              <div className="sc-card-valcol">
-                                <div className="sc-card-vallabel">DPS</div>
-                                <div className="sc-card-valline">
-                                  <input className="sc-card-valinput" type="number" placeholder="0"
-                                    style={{ color: valueColor(cellData.normal) }}
-                                    value={cellData.normal ?? ''} onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => updateCellValue(cellId, 'normal', e.target.value)} />
-                                  <span className="sc-card-valpct">%</span>
-                                </div>
-                              </div>
-                              <div className="sc-card-valcol">
-                                <div className="sc-card-vallabel">Potential</div>
-                                <div className="sc-card-valline">
-                                  <input className="sc-card-valinput" type="number" placeholder="0"
-                                    style={{ color: valueColor(cellData.potential) }}
-                                    value={cellData.potential ?? ''} onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => updateCellValue(cellId, 'potential', e.target.value)} />
-                                  <span className="sc-card-valpct">%</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="sc-card-remove" onClick={(e) => { e.stopPropagation(); clearCell(cellId); }}><X size={12} /></div>
-                          </>
-                        ) : (
-                          <>
-                            <Plus size={18} />
-                            <div className="sc-card-emptytext">Empty cell</div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+      {page === 'skills' && (
+        <>
+          <div className="sc-topbar">
+            <div className="sc-heading sc-title">Skill Constructor</div>
+            <div className="sc-subtitle">Eye + Ring · Skill Comparison</div>
+          </div>
+          <div className="sc-actions">
+            <div className="sc-libbtn" onClick={() => setLibraryOpen(true)}>
+              <FolderOpen size={15} /> Library
             </div>
-          );
-        })}
-      </div>
-
-      <div className="sc-footer">
-        Small details → Big difference · <span className="sc-reset" onClick={async () => {
-          const ok = window.confirm("Delete all cells, the library, and settings? This can't be undone.");
-          if (!ok) return;
-          await persistLibrary([]);
-          await persistLayout(DEFAULT_LAYOUT);
-          persistBoard({});
-          showToast('Everything reset');
-        }}>reset everything</span>
-      </div>
-
-      {picker && (
-        <div className="sc-overlay" onClick={() => setPicker(null)}>
-          <div className="sc-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="sc-modal-head">
-              <div className="sc-heading sc-modal-title">{QUALITIES.find((q) => q.key === picker.quality)?.label}</div>
-              <div className="sc-close" onClick={() => setPicker(null)}><X size={15} /></div>
+            <div className={`sc-libbtn ${downloading ? 'disabled' : ''}`} onClick={handleDownload}>
+              {downloading ? <Loader2 size={15} className="spin" /> : <Download size={15} />} Download
             </div>
-            {library.filter((s) => s.quality === picker.quality).length === 0 ? (
-              <div className="sc-empty-msg">No icons of this rarity in the library yet.<br />Upload the first one below.</div>
-            ) : (
-              <div className="sc-picker-grid">
-                {library.filter((s) => s.quality === picker.quality).map((s) => (
-                  <div key={s.id} className="sc-pick-item" onClick={() => assignSkillToCell(picker.cellId, s.id)}>
-                    <img src={s.image} alt={s.name} />
+          </div>
+
+          <div ref={boardRef} className={exporting ? 'sc-exporting' : ''}>
+            {QUALITIES.map((q) => {
+              const count = layout[q.key] ?? 0;
+              return (
+                <div key={q.key} className="sc-section" style={{ '--acc': q.accent, '--acc-dim': q.accentDim, '--acc-glow': q.glow, '--acc-bg': q.accentDim + '22' }}>
+                  <div className="sc-section-head">
+                    <div className="sc-heading sc-section-title"><span className="sc-dot" />{q.label}</div>
+                    <div className="sc-stepper">
+                      <div className="sc-stepbtn" onClick={() => changeCellCount(q.key, -1)}>−</div>
+                      <div className="sc-count">{count}</div>
+                      <div className="sc-stepbtn" onClick={() => changeCellCount(q.key, 1)}>+</div>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-            <div className="sc-uploadbtn" onClick={() => openUploadFor('picker', picker.quality, picker.cellId)}>
-              <Upload size={15} /> Upload new icon
-            </div>
+                  {count === 0 ? (
+                    <div className="sc-empty-msg">No cells yet — add one with the + above</div>
+                  ) : (
+                    <div className="sc-cardlist">
+                      {Array.from({ length: count }).map((_, i) => {
+                        const cellId = `${q.key}-${i}`;
+                        const cellData = board[cellId];
+                        const skill = cellData ? skillById(cellData.skillId) : null;
+                        return (
+                          <div key={cellId} className={`sc-card ${skill ? 'filled' : 'empty'}`}
+                            style={{ '--acc': q.accent, '--acc-dim': q.accentDim, '--acc-glow': q.glow }}
+                            onClick={() => !skill && openPicker(q.key, i)}>
+                            {skill ? (
+                              <>
+                                <div className="sc-card-icon"><img src={skill.image} alt={skill.name} /></div>
+                                <div className="sc-card-info">
+                                  <div className="sc-card-name">{skill.name}</div>
+                                  <div className="sc-card-badge">{q.short}</div>
+                                </div>
+                                <div className="sc-card-values">
+                                  <div className="sc-card-valcol">
+                                    <div className="sc-card-vallabel">DPS</div>
+                                    <div className="sc-card-valline">
+                                      <input className="sc-card-valinput" type="number" placeholder="0"
+                                        style={{ color: valueColor(cellData.normal) }}
+                                        value={cellData.normal ?? ''} onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => updateCellValue(cellId, 'normal', e.target.value)} />
+                                      <span className="sc-card-valpct">%</span>
+                                    </div>
+                                  </div>
+                                  <div className="sc-card-valcol">
+                                    <div className="sc-card-vallabel">Potential</div>
+                                    <div className="sc-card-valline">
+                                      <input className="sc-card-valinput" type="number" placeholder="0"
+                                        style={{ color: valueColor(cellData.potential) }}
+                                        value={cellData.potential ?? ''} onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => updateCellValue(cellId, 'potential', e.target.value)} />
+                                      <span className="sc-card-valpct">%</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="sc-card-remove" onClick={(e) => { e.stopPropagation(); clearCell(cellId); }}><X size={12} /></div>
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={18} />
+                                <div className="sc-card-emptytext">Empty cell</div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
+
+          <div className="sc-footer">
+            Small details → Big difference · <span className="sc-reset" onClick={async () => {
+              const ok = window.confirm("Delete all cells, the library, and settings? This can't be undone.");
+              if (!ok) return;
+              await persistLibrary([]);
+              await persistLayout(DEFAULT_LAYOUT);
+              persistBoard({});
+              showToast('Everything reset');
+            }}>reset everything</span>
+          </div>
+
+          {picker && (
+            <div className="sc-overlay" onClick={() => setPicker(null)}>
+              <div className="sc-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="sc-modal-head">
+                  <div className="sc-heading sc-modal-title">{QUALITIES.find((q) => q.key === picker.quality)?.label}</div>
+                  <div className="sc-close" onClick={() => setPicker(null)}><X size={15} /></div>
+                </div>
+                {library.filter((s) => s.quality === picker.quality).length === 0 ? (
+                  <div className="sc-empty-msg">No icons of this rarity in the library yet.<br />Upload the first one below.</div>
+                ) : (
+                  <div className="sc-picker-grid">
+                    {library.filter((s) => s.quality === picker.quality).map((s) => (
+                      <div key={s.id} className="sc-pick-item" onClick={() => assignSkillToCell(picker.cellId, s.id)}>
+                        <img src={s.image} alt={s.name} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="sc-uploadbtn" onClick={() => openUploadFor('picker', picker.quality, picker.cellId)}>
+                  <Upload size={15} /> Upload new icon
+                </div>
+              </div>
+            </div>
+          )}
+
+          {libraryOpen && (
+            <div className="sc-overlay" onClick={() => setLibraryOpen(false)}>
+              <div className="sc-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="sc-modal-head">
+                  <div className="sc-heading sc-modal-title">Skill Library</div>
+                  <div className="sc-close" onClick={() => setLibraryOpen(false)}><X size={15} /></div>
+                </div>
+                <div className="sc-tabs">
+                  {QUALITIES.map((q) => (
+                    <div key={q.key} className="sc-tab"
+                      style={libTab === q.key ? { background: q.accent, borderColor: q.accent, color: '#0a0e1a' } : {}}
+                      onClick={() => setLibTab(q.key)}>
+                      {q.short} ({library.filter((s) => s.quality === q.key).length})
+                    </div>
+                  ))}
+                </div>
+                <div className="sc-uploadbtn" style={{ marginBottom: 10 }} onClick={() => openUploadFor('library', libTab, null)}>
+                  <Upload size={15} /> Upload to {QUALITIES.find((q) => q.key === libTab)?.short}
+                </div>
+                {library.filter((s) => s.quality === libTab).length === 0 ? (
+                  <div className="sc-empty-msg">Empty for now</div>
+                ) : (
+                  library.filter((s) => s.quality === libTab).map((s) => (
+                    <div key={s.id} className="sc-lib-row">
+                      <div className="sc-lib-thumb"><img src={s.image} alt={s.name} /></div>
+                      <input className="sc-lib-name" value={s.name} onChange={(e) => renameSkill(s.id, e.target.value)} />
+                      <select className="sc-lib-select" value={s.quality} onChange={(e) => changeSkillQuality(s.id, e.target.value)}>
+                        {QUALITIES.map((q) => <option key={q.key} value={q.key}>{q.short}</option>)}
+                      </select>
+                      <div className="sc-lib-del" onClick={() => deleteSkill(s.id)}><Trash2 size={15} /></div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {libraryOpen && (
-        <div className="sc-overlay" onClick={() => setLibraryOpen(false)}>
-          <div className="sc-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="sc-modal-head">
-              <div className="sc-heading sc-modal-title">Skill Library</div>
-              <div className="sc-close" onClick={() => setLibraryOpen(false)}><X size={15} /></div>
-            </div>
-            <div className="sc-tabs">
-              {QUALITIES.map((q) => (
-                <div key={q.key} className="sc-tab"
-                  style={libTab === q.key ? { background: q.accent, borderColor: q.accent, color: '#0a0e1a' } : {}}
-                  onClick={() => setLibTab(q.key)}>
-                  {q.short} ({library.filter((s) => s.quality === q.key).length})
-                </div>
-              ))}
-            </div>
-            <div className="sc-uploadbtn" style={{ marginBottom: 10 }} onClick={() => openUploadFor('library', libTab, null)}>
-              <Upload size={15} /> Upload to {QUALITIES.find((q) => q.key === libTab)?.short}
-            </div>
-            {library.filter((s) => s.quality === libTab).length === 0 ? (
-              <div className="sc-empty-msg">Empty for now</div>
-            ) : (
-              library.filter((s) => s.quality === libTab).map((s) => (
-                <div key={s.id} className="sc-lib-row">
-                  <div className="sc-lib-thumb"><img src={s.image} alt={s.name} /></div>
-                  <input className="sc-lib-name" value={s.name} onChange={(e) => renameSkill(s.id, e.target.value)} />
-                  <select className="sc-lib-select" value={s.quality} onChange={(e) => changeSkillQuality(s.id, e.target.value)}>
-                    {QUALITIES.map((q) => <option key={q.key} value={q.key}>{q.short}</option>)}
-                  </select>
-                  <div className="sc-lib-del" onClick={() => deleteSkill(s.id)}><Trash2 size={15} /></div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      {page === 'archero' && <ArcheroBuilder />}
 
       {toast && <div className="sc-toast">{toast}</div>}
     </div>
