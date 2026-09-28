@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, X, Upload, Trash2, Loader2, FolderOpen, Download } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { storage, uid, resizeImageFile } from './storage';
+import Comparisons from './Comparisons';
 
 const EQUIPMENT_SLOTS = [
   { key: 'weapon', label: 'Weapon' },
@@ -17,6 +18,7 @@ const ARCH_TABS = [
   { key: 'runes', label: 'Runes' },
   { key: 'enchant', label: 'Enchantments' },
   { key: 'characters', label: 'Characters' },
+  { key: 'compare', label: 'Comparisons' },
 ];
 
 const ACC = { accent: '#e0529c', accentDim: '#6b1f45', glow: 'rgba(224,82,156,0.35)' };
@@ -206,7 +208,7 @@ export default function ArcheroBuilder() {
 
       <div className="ab-tabs">
         {ARCH_TABS.map((t) => (
-          <div key={t.key} className={`ab-tab ${tab === t.key ? 'active' : ''} ${t.key !== 'equipment' ? 'disabled' : ''}`}
+          <div key={t.key} className={`ab-tab ${tab === t.key ? 'active' : ''} ${t.key !== 'equipment' && t.key !== 'compare' ? 'disabled' : ''}`}
             onClick={() => setTab(t.key)}>
             {t.label}
           </div>
@@ -249,7 +251,9 @@ export default function ArcheroBuilder() {
         </>
       )}
 
-      {tab !== 'equipment' && (
+      {tab === 'compare' && <Comparisons />}
+
+      {tab !== 'equipment' && tab !== 'compare' && (
         <div className="ab-soon">
           {ARCH_TABS.find((t) => t.key === tab)?.label} — coming soon
         </div>
