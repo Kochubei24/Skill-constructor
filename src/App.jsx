@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, X, Upload, Trash2, Loader2, FolderOpen, Download } from 'lucide-react';
+import { Plus, X, Upload, Trash2, Loader2, FolderOpen, Download, GripVertical } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { storage, uid, resizeImageFile } from './storage';
 import ArcheroBuilder from './ArcheroBuilder';
@@ -38,10 +38,12 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [draggingId, setDraggingId] = useState(null);
   const boardSaveTimer = useRef(null);
   const fileInputRef = useRef(null);
   const uploadContext = useRef(null);
   const boardRef = useRef(null);
+  const stateRef = useRef({ board: {}, layout: DEFAULT_LAYOUT });
 
   useEffect(() => {
     (async () => {
@@ -56,6 +58,10 @@ export default function App() {
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    stateRef.current = { board, layout };
+  }, [board, layout]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200); };
 
@@ -79,6 +85,58 @@ export default function App() {
       if (!res) showToast('Failed to save progress');
     }, 500);
   }, []);
+
+  const moveCellWithinQuality = useCallback((qualityKey, fromIdx, toIdx) => {
+    if (fromIdx === toIdx) return;
+    const { board: curBoard, layout: curLayout } = stateRef.current;
+    const count = curLayout[qualityKey] ?? 0;
+    const ids = Array.from({ length: count }, (_, i) => `${qualityKey}-${i}`);
+    const values = ids.map((id) => curBoard[id]);
+    const [moved] = values.splice(fromIdx, 1);
+    values.splice(toIdx, 0, moved);
+    const next = { ...curBoard };
+    ids.forEach((id, i) => {
+      if (values[i] === undefined) delete next[id];
+      else next[id] = values[i];
+    });
+    persistBoard(next);
+  }, [persistBoard]);
+
+  const handleGripPointerDown = (e, cellId, qualityKey, index) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const containerEl = e.currentTarget.closest('.sc-cardlist');
+    if (!containerEl) return;
+    let currentIndex = index;
+    setDraggingId(cellId);
+
+    const onMove = (ev) => {
+      ev.preventDefault();
+      const cards = Array.from(containerEl.querySelectorAll('.sc-card'));
+      let newIndex = 0;
+      cards.forEach((cardEl) => {
+        const rect = cardEl.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (ev.clientY > mid) newIndex++;
+      });
+      newIndex = Math.min(newIndex, cards.length - 1);
+      if (newIndex !== currentIndex) {
+        moveCellWithinQuality(qualityKey, currentIndex, newIndex);
+        currentIndex = newIndex;
+      }
+    };
+
+    const onUp = () => {
+      setDraggingId(null);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
 
   const handleFileChosen = async (file) => {
     if (!file) return;
@@ -235,7 +293,11 @@ export default function App() {
         .sc-card-valinput[type=number] { -moz-appearance: textfield; }
         .sc-card-valpct { font-size: 11px; font-weight: 700; color: #ffffff; }
         .sc-card-remove { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 6px; background: rgba(10,14,26,0.85); border: 1px solid #26314d; color: #cfd6e8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .sc-card-handle { flex-shrink: 0; width: 18px; align-self: stretch; display: flex; align-items: center; justify-content: center; color: #5b6784; cursor: grab; touch-action: none; user-select: none; }
+        .sc-card-handle:active { cursor: grabbing; color: #9aa5c4; }
+        .sc-card.dragging { opacity: 0.55; }
         .sc-exporting .sc-card-remove { display: none; }
+        .sc-exporting .sc-card-handle { display: none; }
         .sc-exporting .sc-stepbtn { display: none; }
         .sc-overlay { position: fixed; inset: 0; background: rgba(6,9,18,0.82); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
         .sc-modal { background: #10182c; width: 100%; max-width: 520px; max-height: 82vh; border-radius: 18px 18px 0 0; padding: 16px; overflow-y: auto; border: 1px solid #26314d; border-bottom: none; }
@@ -306,11 +368,14 @@ export default function App() {
                         const cellData = board[cellId];
                         const skill = cellData ? skillById(cellData.skillId) : null;
                         return (
-                          <div key={cellId} className={`sc-card ${skill ? 'filled' : 'empty'}`}
+                          <div key={cellId} className={`sc-card ${skill ? 'filled' : 'empty'} ${cellId === draggingId ? 'dragging' : ''}`}
                             style={{ '--acc': q.accent, '--acc-dim': q.accentDim, '--acc-glow': q.glow }}
                             onClick={() => !skill && openPicker(q.key, i)}>
                             {skill ? (
                               <>
+                                <div className="sc-card-handle" onPointerDown={(e) => handleGripPointerDown(e, cellId, q.key, i)}>
+                                  <GripVertical size={14} />
+                                </div>
                                 <div className="sc-card-icon"><img src={skill.image} alt={skill.name} /></div>
                                 <div className="sc-card-info">
                                   <div className="sc-card-name">{skill.name}</div>
